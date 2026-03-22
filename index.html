@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>衛星データ事例ブラウザ</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#f5f5f0;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif}
+:root{
+  --teal:#1D9E75;--teal-light:#E1F5EE;--teal-mid:#5DCAA5;--teal-dark:#085041;
+  --amber:#BA7517;--amber-light:#FAEEDA;
+  --coral:#D85A30;--coral-light:#FAECE7;
+  --bg:#ffffff;--bg2:#f5f5f0;--bg3:#ebebE6;
+  --text:#1a1a1a;--text2:#6b6b67;--text3:#9c9a92;
+  --border:rgba(0,0,0,0.12);--border2:rgba(0,0,0,0.08)
+}
+@media(prefers-color-scheme:dark){
+  :root{
+    --bg:#1c1c1e;--bg2:#2c2c2e;--bg3:#3a3a3c;
+    --text:#f2f2f7;--text2:#aeaeb2;--text3:#636366;
+    --border:rgba(255,255,255,0.12);--border2:rgba(255,255,255,0.06);
+    --teal-light:#0a3d2a;--teal-dark:#9FE1CB;
+    --amber-light:#3d2a08;--coral-light:#3d1a0a
+  }
+}
+.app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:var(--bg)}
+.header{padding:16px 16px 0;border-bottom:0.5px solid var(--border);background:var(--bg)}
+.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.logo{font-size:17px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.logo-icon{width:28px;height:28px;background:var(--teal);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.logo-icon svg{width:16px;height:16px;fill:none;stroke:white;stroke-width:1.8}
+.stats-row{display:flex;gap:8px;padding-bottom:12px}
+.stat{flex:1;text-align:center;padding:8px 4px;background:var(--bg2);border-radius:10px}
+.stat-num{font-size:20px;font-weight:600;color:var(--text)}
+.stat-label{font-size:10px;color:var(--text3);margin-top:1px}
+.tabs{display:flex}
+.tab{flex:1;padding:10px 4px;text-align:center;font-size:13px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;user-select:none}
+.tab.active{color:var(--teal);border-bottom-color:var(--teal);font-weight:600}
+.content{flex:1;overflow:hidden}
+.section{display:none;height:100%}
+.section.active{display:flex;flex-direction:column;height:100%}
+
+/* Upload */
+.upload-zone{margin:16px;padding:28px 16px;border:1.5px dashed var(--border);border-radius:16px;text-align:center;cursor:pointer;transition:all .15s;background:var(--bg2)}
+.upload-zone:active{border-color:var(--teal);background:var(--teal-light)}
+.upload-icon{width:44px;height:44px;margin:0 auto 10px;background:var(--teal-light);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.upload-icon svg{width:22px;height:22px;stroke:var(--teal);fill:none;stroke-width:1.8}
+.upload-zone p{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+.upload-zone .hint{font-size:12px;color:var(--text3)}
+#csvInput{display:none}
+.csv-format{margin:0 16px 12px;padding:12px 14px;background:var(--bg2);border-radius:12px;border:0.5px solid var(--border2)}
+.csv-format-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px}
+.csv-cols{display:flex;flex-wrap:wrap;gap:5px}
+.col-tag{font-size:11px;padding:3px 8px;background:var(--bg);border:0.5px solid var(--border);border-radius:20px;color:var(--text2)}
+.col-tag.required{background:var(--teal-light);border-color:var(--teal-mid);color:var(--teal-dark)}
+.download-template{display:block;margin:0 16px 12px;padding:11px;border:0.5px solid var(--teal-mid);border-radius:12px;font-size:14px;font-weight:500;color:var(--teal);cursor:pointer;background:var(--teal-light);text-align:center}
+.sample-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 16px}
+.sample-btn{padding:11px 10px;border-radius:12px;font-size:13px;cursor:pointer;text-align:center;border:0.5px solid var(--border)}
+.sample-btn.load{background:var(--teal-light);color:var(--teal-dark);border-color:var(--teal-mid)}
+.sample-btn.clear{background:var(--coral-light);color:#4A1B0C;border-color:#F0997B}
+
+/* Swipe */
+.swipe-area{flex:1;display:flex;flex-direction:column;padding:12px 16px;gap:12px;overflow:hidden}
+.progress-bar{height:4px;background:var(--border2);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:var(--teal);border-radius:2px;transition:width .3s}
+.progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:4px}
+.card-stack{flex:1;position:relative;overflow:hidden}
+.swipe-card{position:absolute;inset:0;background:var(--bg);border:0.5px solid var(--border);border-radius:20px;overflow:hidden;cursor:grab;user-select:none;display:flex;flex-direction:column}
+.swipe-card:active{cursor:grabbing}
+.swipe-card.behind{transform:scale(0.96) translateY(8px);opacity:0.6;pointer-events:none;z-index:0}
+.swipe-card.front{z-index:1}
+.swipe-hint{position:absolute;top:16px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;opacity:0;z-index:10;pointer-events:none}
+.hint-like{right:16px;background:#E1F5EE;color:#085041;border:2px solid #5DCAA5}
+.hint-pass{left:16px;background:#FAECE7;color:#711B0C;border:2px solid #F0997B}
+.card-header{padding:16px 16px 12px;border-bottom:0.5px solid var(--border2)}
+.card-field-tag{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;background:var(--teal-light);color:var(--teal-dark);font-weight:600;margin-bottom:8px}
+.card-title{font-size:18px;font-weight:700;color:var(--text);line-height:1.35;margin-bottom:6px}
+.card-desc{font-size:13px;color:var(--text2);line-height:1.65}
+.card-body{padding:14px 16px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.metrics-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+.metric-item{background:var(--bg2);border-radius:10px;padding:9px 6px;text-align:center}
+.metric-label{font-size:10px;color:var(--text3);margin-bottom:5px}
+.metric-value{font-size:13px;font-weight:600;color:var(--text);margin-top:4px}
+.difficulty-dots{display:flex;gap:3px;justify-content:center}
+.dot{width:8px;height:8px;border-radius:50%}
+.dot.filled-tech{background:var(--teal)}
+.dot.filled-biz{background:var(--amber)}
+.dot.filled-cash{background:var(--coral)}
+.dot.empty{background:var(--border)}
+.memo-area{margin-top:2px}
+.memo-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.memo-input{width:100%;border:0.5px solid var(--border);border-radius:10px;padding:9px 11px;font-size:13px;font-family:inherit;color:var(--text);background:var(--bg2);resize:none;height:68px;outline:none;-webkit-appearance:none}
+.memo-input:focus{border-color:var(--teal);background:var(--bg)}
+.url-link{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--teal);padding:7px 0;cursor:pointer;word-break:break-all}
+.url-link svg{width:12px;height:12px;stroke:var(--teal);fill:none;flex-shrink:0;stroke-width:2}
+.action-row{display:flex;gap:10px;padding:12px 16px;border-top:0.5px solid var(--border2)}
+.action-btn{flex:1;padding:13px 8px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:all .12s;border:0.5px solid transparent;-webkit-tap-highlight-color:transparent}
+.btn-pass{background:var(--coral-light);color:#4A1B0C;border-color:#F0997B}
+.btn-like{background:var(--teal-light);color:var(--teal-dark);border-color:var(--teal-mid)}
+.btn-pass:active,.btn-like:active{transform:scale(0.96)}
+
+/* Empty */
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center}
+.empty-icon{width:60px;height:60px;background:var(--bg2);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.empty-icon svg{width:30px;height:30px;stroke:var(--text3);fill:none;stroke-width:1.5}
+.empty-title{font-size:17px;font-weight:600;color:var(--text);margin-bottom:8px}
+.empty-text{font-size:13px;color:var(--text2);line-height:1.7}
+
+/* List */
+.filter-row{display:flex;gap:7px;padding:12px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-shrink:0}
+.filter-row::-webkit-scrollbar{display:none}
+.filter-chip{white-space:nowrap;padding:6px 13px;border-radius:20px;font-size:12px;font-weight:500;border:0.5px solid var(--border);cursor:pointer;color:var(--text2);background:var(--bg2);transition:all .12s;-webkit-tap-highlight-color:transparent}
+.filter-chip.active{background:var(--teal);color:white;border-color:var(--teal)}
+.list-area{flex:1;overflow-y:auto;padding:0 16px 24px;-webkit-overflow-scrolling:touch}
+.list-card{background:var(--bg);border:0.5px solid var(--border);border-radius:14px;padding:13px;margin-bottom:9px;cursor:pointer;transition:background .1s;-webkit-tap-highlight-color:transparent}
+.list-card:active{background:var(--bg2)}
+.list-card-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
+.list-card-tags{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+.list-card-tag{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--teal-light);color:var(--teal-dark);font-weight:500}
+.badge-done{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--bg2);color:var(--text3);border:0.5px solid var(--border)}
+.badge-liked{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--teal-light);color:var(--teal-dark)}
+.list-card-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.4}
+.list-card-desc{font-size:12px;color:var(--text2);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.list-card-meta{display:flex;gap:10px;margin-top:7px}
+.meta-item{font-size:11px;color:var(--text3)}
+.no-data{padding:48px 16px;text-align:center;color:var(--text3);font-size:14px;line-height:1.8}
+
+/* Liked */
+.liked-card{background:var(--bg);border:0.5px solid var(--teal-mid);border-radius:14px;padding:14px;margin-bottom:9px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.liked-card:active{background:var(--teal-light)}
+.liked-memo{font-size:12px;color:var(--text2);margin-top:9px;padding:9px 11px;background:var(--bg2);border-radius:10px;line-height:1.6}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-overlay.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg);border-radius:24px 24px 0 0;width:100%;max-height:88vh;overflow-y:auto;padding:0 16px 40px;transform:translateY(100%);transition:transform .28s cubic-bezier(0.32,0.72,0,1);-webkit-overflow-scrolling:touch}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:12px auto 16px}
+.modal-field-tag{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;background:var(--teal-light);color:var(--teal-dark);font-weight:600;margin-bottom:10px}
+.modal-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px;line-height:1.35}
+.modal-desc{font-size:14px;color:var(--text2);line-height:1.75;margin-bottom:16px}
+.modal-section-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:9px;padding-bottom:5px;border-bottom:0.5px solid var(--border2)}
+.modal-metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px}
+.modal-metric{background:var(--bg2);border-radius:10px;padding:11px 6px;text-align:center}
+.modal-metric-label{font-size:10px;color:var(--text3);margin-bottom:6px}
+.modal-metric-val{font-size:13px;font-weight:600;color:var(--text)}
+.modal-url{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--teal);cursor:pointer;margin-bottom:16px;word-break:break-all;padding:10px 12px;background:var(--teal-light);border-radius:10px}
+.modal-url svg{flex-shrink:0;width:14px;height:14px;stroke:var(--teal);fill:none;stroke-width:2}
+.modal-memo-input{width:100%;border:0.5px solid var(--border);border-radius:12px;padding:11px 13px;font-size:14px;font-family:inherit;color:var(--text);background:var(--bg2);resize:none;height:88px;outline:none;-webkit-appearance:none;margin-bottom:12px}
+.modal-memo-input:focus{border-color:var(--teal);background:var(--bg)}
+.modal-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.modal-action-btn{padding:12px;border-radius:12px;font-size:13px;font-weight:500;cursor:pointer;text-align:center;border:0.5px solid var(--border);background:var(--bg2);color:var(--text2);transition:all .12s;-webkit-tap-highlight-color:transparent}
+.modal-action-btn:active{transform:scale(0.97)}
+.modal-save-btn{width:100%;padding:14px;background:var(--teal);color:white;border:none;border-radius:14px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.modal-save-btn:active{opacity:0.85}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-top">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        衛星データ事例ブラウザ
+      </div>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-num" id="totalCount">0</div><div class="stat-label">事例</div></div>
+      <div class="stat"><div class="stat-num" id="doneCount">0</div><div class="stat-label">確認済み</div></div>
+      <div class="stat"><div class="stat-num" id="likedCount">0</div><div class="stat-label">いいね</div></div>
+      <div class="stat"><div class="stat-num" id="remainCount">0</div><div class="stat-label">未確認</div></div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('swipe')">スワイプ</div>
+      <div class="tab" onclick="switchTab('list')">一覧</div>
+      <div class="tab" onclick="switchTab('liked')">いいね</div>
+      <div class="tab" onclick="switchTab('upload')">読込</div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="section active" id="sec-swipe">
+      <div id="swipe-main" style="flex:1;display:flex;flex-direction:column;overflow:hidden"></div>
+    </div>
+    <div class="section" id="sec-list">
+      <div class="filter-row" id="filter-row" data-active="all"></div>
+      <div class="list-area" id="list-area"></div>
+    </div>
+    <div class="section" id="sec-liked">
+      <div class="list-area" id="liked-area"></div>
+    </div>
+    <div class="section" id="sec-upload">
+      <div class="upload-zone" onclick="document.getElementById('csvInput').click()">
+        <div class="upload-icon"><svg viewBox="0 0 24 24" stroke-width="1.8"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg></div>
+        <p>CSVファイルをアップロード</p>
+        <div class="hint">タップしてファイルを選択</div>
+        <input type="file" id="csvInput" accept=".csv" onchange="loadCSV(event)">
+      </div>
+      <div class="csv-format">
+        <div class="csv-format-title">CSVの列（1行目はヘッダー行）</div>
+        <div class="csv-cols">
+          <span class="col-tag required">分野</span>
+          <span class="col-tag required">事例名</span>
+          <span class="col-tag required">概要</span>
+          <span class="col-tag">技術難易度(1-5)</span>
+          <span class="col-tag">営業難易度(1-5)</span>
+          <span class="col-tag">キャッシュまで(月)</span>
+          <span class="col-tag">参考URL</span>
+        </div>
+      </div>
+      <div class="download-template" onclick="downloadTemplate()">サンプルCSVをダウンロード</div>
+      <div class="sample-grid">
+        <div class="sample-btn load" onclick="loadSample()">サンプル8件を読み込む</div>
+        <div class="sample-btn clear" onclick="clearData()">データを全消去</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal" id="modal">
+    <div class="modal-handle"></div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+const SAMPLE = [
+  {分野:'農業',事例名:'果樹園NDVI変化モニタリング',概要:'Sentinel-2のNDVIで樹木の生育状況を週次監視。山間部の梨・ブドウ農家向けにLINE通知で提供。収穫時期の予測と病害検知に活用。',技術難易度:3,営業難易度:2,キャッシュまで:3,参考URL:''},
+  {分野:'不動産',事例名:'空き地・遊休農地スクリーニング',概要:'BSIとNDVIの組み合わせで未管理地を自動検出。競合より早く土地オーナーにアプローチできる土地仕入れ支援ツール。',技術難易度:3,営業難易度:3,キャッシュまで:4,参考URL:''},
+  {分野:'自治体',事例名:'無断開発・盛土モニタリング',概要:'京田辺市モデルを横展開。NDVIとNDBIの変化検知で不法開発を自動アラート。担当職員の巡回業務を効率化。',技術難易度:4,営業難易度:4,キャッシュまで:8,参考URL:''},
+  {分野:'農業',事例名:'水稲作付面積推定サービス',概要:'SAR（合成開口レーダー）で水田を識別し作付面積を推定。JAや行政の補助金申請業務の確認作業を自動化。',技術難易度:4,営業難易度:3,キャッシュまで:6,参考URL:''},
+  {分野:'保険',事例名:'農業保険の被害査定支援',概要:'台風・大雨後の植生ダメージをNDVIで定量化。損保会社の現地査定コストを削減するSaaS。',技術難易度:3,営業難易度:4,キャッシュまで:10,参考URL:''},
+  {分野:'林業',事例名:'森林カーボンクレジット計測',概要:'森林のバイオマス変化をSentinel-2で継続監視。Jクレジット申請に必要な計測レポートを自動生成。',技術難易度:5,営業難易度:4,キャッシュまで:12,参考URL:''},
+  {分野:'インフラ',事例名:'太陽光パネル劣化検知',概要:'赤外・可視光バンドの組み合わせで大規模メガソーラーの劣化パネルを特定。メンテナンス優先度マップを提供。',技術難易度:4,営業難易度:3,キャッシュまで:5,参考URL:''},
+  {分野:'ESG',事例名:'企業緑地・生物多様性スコアリング',概要:'工場・物流拠点周辺の植生変化を継続記録。ESG開示要件への対応を支援するスコアリングレポートサービス。',技術難易度:3,営業難易度:5,キャッシュまで:9,参考URL:''},
+];
+
+let cases = [];
+let meta = {};
+
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
+function loadStorage(){
+  try{ const d=lsGet('sat_cases'); if(d) cases=JSON.parse(d); }catch(e){}
+  try{ const d=lsGet('sat_meta'); if(d) meta=JSON.parse(d); }catch(e){}
+}
+function saveCases(){ lsSet('sat_cases', JSON.stringify(cases)); }
+function saveMeta(){ lsSet('sat_meta', JSON.stringify(meta)); }
+function getM(id){ return meta[id] || {liked:false,done:false,memo:''}; }
+
+function updateStats(){
+  document.getElementById('totalCount').textContent = cases.length;
+  document.getElementById('doneCount').textContent = cases.filter(c=>getM(c._id).done).length;
+  document.getElementById('likedCount').textContent = cases.filter(c=>getM(c._id).liked).length;
+  document.getElementById('remainCount').textContent = cases.filter(c=>!getM(c._id).done).length;
+}
+
+function parseCSVRow(row){
+  const res=[];let cur='';let inQ=false;
+  for(let i=0;i<row.length;i++){
+    const c=row[i];
+    if(c==='"'&&row[i+1]==='"'){cur+='"';i++;}
+    else if(c==='"'){inQ=!inQ;}
+    else if(c===','&&!inQ){res.push(cur);cur='';}
+    else cur+=c;
+  }
+  res.push(cur);
+  return res;
+}
+function parseCSV(text){
+  const lines=text.trim().split(/\r?\n/);
+  if(lines.length<2) return [];
+  const headers=parseCSVRow(lines[0]);
+  return lines.slice(1).map((line,i)=>{
+    const vals=parseCSVRow(line);
+    const obj={_id:'case_'+Date.now()+'_'+i};
+    headers.forEach((h,idx)=>{ obj[h.trim()]=(vals[idx]||'').trim(); });
+    return obj;
+  }).filter(o=>o['分野']||o['事例名']);
+}
+
+function loadCSV(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const parsed=parseCSV(ev.target.result);
+    if(!parsed.length){ alert('CSVを読み込めませんでした。形式を確認してください。'); return; }
+    cases=parsed;
+    saveCases();
+    updateStats();
+    renderSwipe();
+    renderList();
+    renderLiked();
+    switchTab('swipe');
+    alert(parsed.length+'件の事例を読み込みました！');
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+function downloadTemplate(){
+  const h='分野,事例名,概要,技術難易度(1-5),営業難易度(1-5),キャッシュまで(月),参考URL';
+  const r='農業,NDVIモニタリング,果樹園の生育状況を週次監視しLINEで通知,3,2,3,https://example.com';
+  const blob=new Blob([h+'\n'+r],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='satellite_cases_template.csv'; a.click();
+}
+
+function loadSample(){
+  cases=SAMPLE.map((c,i)=>({...c,_id:'sample_'+i}));
+  saveCases();
+  updateStats();
+  renderSwipe();
+  renderList();
+  renderLiked();
+  switchTab('swipe');
+}
+
+function clearData(){
+  if(!confirm('全データを消去しますか？')) return;
+  cases=[]; meta={};
+  saveCases(); saveMeta();
+  updateStats(); renderSwipe(); renderList(); renderLiked();
+}
+
+function getDiff(c, key){
+  const v=c[key+'(1-5)']||c[key]||'';
+  return Math.min(Math.max(parseInt(v)||0,0),5);
+}
+function diffLabel(n){ return n<=0?'—':n<=2?'低':n<=3?'中':'高'; }
+function cashLabel(v){ const n=parseInt(v)||0; return n?n+'ヶ月':'—'; }
+
+function renderDots(n, cls, max=5){
+  let h='';
+  for(let i=0;i<max;i++) h+=`<div class="dot ${i<n?'filled-'+cls:'empty'}"></div>`;
+  return h;
+}
+
+/* ---- SWIPE ---- */
+function renderSwipe(){
+  const cont=document.getElementById('swipe-main');
+  const undone=cases.filter(c=>!getM(c._id).done);
+  if(!cases.length){
+    cont.innerHTML=`<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div><div class="empty-title">事例がありません</div><div class="empty-text">「読込」タブからCSVをアップロード<br>またはサンプルデータを読み込んでください</div></div>`;
+    return;
+  }
+  if(!undone.length){
+    cont.innerHTML=`<div class="empty-state"><div class="empty-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="empty-title">全件確認しました！</div><div class="empty-text">「いいね」タブで気になった事例を<br>振り返ることができます</div></div>`;
+    return;
+  }
+  const done=cases.filter(c=>getM(c._id).done).length;
+  const pct=Math.round((done/cases.length)*100);
+  let html=`<div class="swipe-area"><div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div><div class="progress-label"><span>確認済み ${done}/${cases.length}</span><span>${pct}%</span></div></div><div class="card-stack" id="card-stack">`;
+  const showCards=undone.slice(0,2);
+  showCards.slice().reverse().forEach((c,ri)=>{
+    const isBack=ri===0&&showCards.length>1;
+    const m=getM(c._id);
+    const tech=getDiff(c,'技術難易度');
+    const biz=getDiff(c,'営業難易度');
+    const cash=c['キャッシュまで(月)']||c['キャッシュまで']||'';
+    const url=c['参考URL']||'';
+    html+=`<div class="swipe-card ${isBack?'behind':'front'}" id="card-${c._id}" data-id="${c._id}">
+      <div class="swipe-hint hint-like" id="hl-${c._id}">いいね ♡</div>
+      <div class="swipe-hint hint-pass" id="hp-${c._id}">確認済み ✓</div>
+      <div class="card-header">
+        <div class="card-field-tag">${c['分野']||'—'}</div>
+        <div class="card-title">${c['事例名']||'—'}</div>
+        <div class="card-desc">${c['概要']||'—'}</div>
+      </div>
+      <div class="card-body">
+        <div class="metrics-grid">
+          <div class="metric-item"><div class="metric-label">技術難易度</div><div class="difficulty-dots">${renderDots(tech,'tech')}</div><div class="metric-value">${diffLabel(tech)}</div></div>
+          <div class="metric-item"><div class="metric-label">営業難易度</div><div class="difficulty-dots">${renderDots(biz,'biz')}</div><div class="metric-value">${diffLabel(biz)}</div></div>
+          <div class="metric-item"><div class="metric-label">キャッシュまで</div><div class="metric-value" style="margin-top:14px">${cashLabel(cash)}</div></div>
+        </div>
+        ${url?`<div class="url-link" onclick="openURL('${url}')"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>${url}</div>`:''}
+        <div class="memo-area"><div class="memo-label">メモ</div><textarea class="memo-input" id="memo-${c._id}" placeholder="気づきや考えを残す...">${m.memo||''}</textarea></div>
+      </div>
+    </div>`;
+  });
+  html+=`</div><div class="action-row"><div class="action-btn btn-pass" onclick="markDone('${undone[0]._id}')"><span>✓</span> 確認済み</div><div class="action-btn btn-like" onclick="markLiked('${undone[0]._id}')"><span>♡</span> いいね</div></div></div>`;
+  cont.innerHTML=html;
+  setupSwipe(undone[0]._id);
+}
+
+function setupSwipe(id){
+  const card=document.getElementById('card-'+id);
+  if(!card) return;
+  let sx=0,sy=0,dragging=false;
+  const onStart=e=>{
+    dragging=true;
+    const t=e.touches?e.touches[0]:e;
+    sx=t.clientX; sy=t.clientY;
+    card.style.transition='none';
+  };
+  const onMove=e=>{
+    if(!dragging) return;
+    if(e.cancelable) e.preventDefault();
+    const t=e.touches?e.touches[0]:e;
+    const dx=t.clientX-sx;
+    const dy=t.clientY-sy;
+    card.style.transform=`translateX(${dx}px) translateY(${dy*0.25}px) rotate(${dx*0.07}deg)`;
+    const hl=document.getElementById('hl-'+id);
+    const hp=document.getElementById('hp-'+id);
+    if(dx>30){hl.style.opacity=Math.min((dx-30)/60,1);hp.style.opacity=0;}
+    else if(dx<-30){hp.style.opacity=Math.min((-dx-30)/60,1);hl.style.opacity=0;}
+    else{hl.style.opacity=0;hp.style.opacity=0;}
+  };
+  const onEnd=e=>{
+    if(!dragging) return;
+    dragging=false;
+    const t=e.changedTouches?e.changedTouches[0]:e;
+    const dx=t.clientX-sx;
+    card.style.transition='transform .25s,opacity .25s';
+    if(dx>80) flyOut(id,'right');
+    else if(dx<-80) flyOut(id,'left');
+    else{ card.style.transform=''; document.getElementById('hl-'+id).style.opacity=0; document.getElementById('hp-'+id).style.opacity=0; }
+  };
+  card.addEventListener('touchstart',onStart,{passive:true});
+  card.addEventListener('touchmove',onMove,{passive:false});
+  card.addEventListener('touchend',onEnd);
+  card.addEventListener('mousedown',onStart);
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('mouseup',onEnd);
+}
+
+function flyOut(id,dir){
+  const card=document.getElementById('card-'+id);
+  if(!card) return;
+  card.style.transition='transform .28s,opacity .28s';
+  card.style.transform=`translateX(${dir==='right'?520:-520}px) rotate(${dir==='right'?22:-22}deg)`;
+  card.style.opacity='0';
+  setTimeout(()=>{ dir==='right'?markLiked(id):markDone(id); },260);
+}
+
+function saveMemoFromCard(id){
+  const el=document.getElementById('memo-'+id);
+  if(!el) return;
+  const m=getM(id); m.memo=el.value; meta[id]=m; saveMeta();
+}
+
+function markDone(id){
+  saveMemoFromCard(id);
+  const m=getM(id); m.done=true; meta[id]=m; saveMeta();
+  updateStats(); renderSwipe(); renderList(); renderLiked();
+}
+function markLiked(id){
+  saveMemoFromCard(id);
+  const m=getM(id); m.liked=true; m.done=true; meta[id]=m; saveMeta();
+  updateStats(); renderSwipe(); renderList(); renderLiked();
+}
+
+/* ---- LIST ---- */
+function renderList(){
+  const fields=[...new Set(cases.map(c=>c['分野']).filter(Boolean))];
+  const fr=document.getElementById('filter-row');
+  const active=fr.dataset.active||'all';
+  fr.innerHTML=`<div class="filter-chip ${active==='all'?'active':''}" onclick="setFilter('all')">すべて</div>`+
+    fields.map(f=>`<div class="filter-chip ${active===f?'active':''}" onclick="setFilter('${f.replace(/'/g,"\\'")}'">${f}</div>`).join('')+
+    `<div class="filter-chip ${active==='undone'?'active':''}" onclick="setFilter('undone')">未確認</div>`+
+    `<div class="filter-chip ${active==='liked'?'active':''}" onclick="setFilter('liked')">いいね</div>`;
+  const area=document.getElementById('list-area');
+  let filtered=cases;
+  if(active==='undone') filtered=cases.filter(c=>!getM(c._id).done);
+  else if(active==='liked') filtered=cases.filter(c=>getM(c._id).liked);
+  else if(active!=='all') filtered=cases.filter(c=>c['分野']===active);
+  if(!filtered.length){ area.innerHTML=`<div class="no-data">該当する事例がありません</div>`; return; }
+  area.innerHTML=filtered.map(c=>{
+    const m=getM(c._id);
+    const tech=getDiff(c,'技術難易度');
+    const cash=c['キャッシュまで(月)']||c['キャッシュまで']||'';
+    return `<div class="list-card" onclick="openModal('${c._id}')">
+      <div class="list-card-header"><div class="list-card-tags"><span class="list-card-tag">${c['分野']||'—'}</span></div>${m.done?'<span class="badge-done">確認済み</span>':''}${m.liked?'<span class="badge-liked">♡</span>':''}</div>
+      <div class="list-card-title">${c['事例名']||'—'}</div>
+      <div class="list-card-desc">${c['概要']||'—'}</div>
+      <div class="list-card-meta"><span class="meta-item">技術 ${diffLabel(tech)}</span>${cash?`<span class="meta-item">現金化 ${cashLabel(cash)}</span>`:''}${m.memo?'<span class="meta-item">メモあり</span>':''}</div>
+    </div>`;
+  }).join('');
+}
+
+function setFilter(f){
+  document.getElementById('filter-row').dataset.active=f;
+  renderList();
+}
+
+/* ---- LIKED ---- */
+function renderLiked(){
+  const area=document.getElementById('liked-area');
+  const liked=cases.filter(c=>getM(c._id).liked);
+  if(!liked.length){ area.innerHTML=`<div class="no-data">いいねした事例がまだありません<br><br>スワイプで右フリック、または<br>♡ボタンを押してストックしましょう</div>`; return; }
+  area.innerHTML=liked.map(c=>{
+    const m=getM(c._id);
+    const tech=getDiff(c,'技術難易度');
+    const biz=getDiff(c,'営業難易度');
+    const cash=c['キャッシュまで(月)']||c['キャッシュまで']||'';
+    return `<div class="liked-card" onclick="openModal('${c._id}')">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div><div class="list-card-tag" style="display:inline-block;margin-bottom:6px">${c['分野']||'—'}</div><div style="font-size:15px;font-weight:700;color:var(--text);line-height:1.35">${c['事例名']||'—'}</div></div>
+        <div style="color:var(--teal);font-size:20px;flex-shrink:0;line-height:1">♡</div>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:6px;line-height:1.6">${c['概要']||''}</div>
+      <div style="display:flex;gap:10px;margin-top:8px"><span class="meta-item">技術 ${diffLabel(tech)}</span><span class="meta-item">営業 ${diffLabel(biz)}</span>${cash?`<span class="meta-item">現金化 ${cashLabel(cash)}</span>`:''}</div>
+      ${m.memo?`<div class="liked-memo">${m.memo}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ---- MODAL ---- */
+function openModal(id){
+  const c=cases.find(x=>x._id===id);
+  if(!c) return;
+  const m=getM(id);
+  const tech=getDiff(c,'技術難易度');
+  const biz=getDiff(c,'営業難易度');
+  const cash=c['キャッシュまで(月)']||c['キャッシュまで']||'';
+  const url=c['参考URL']||'';
+  const doneActive=m.done&&!m.liked;
+  const likeActive=m.liked;
+  document.getElementById('modal-content').innerHTML=`
+    <div class="modal-field-tag">${c['分野']||'—'}</div>
+    <div class="modal-title">${c['事例名']||'—'}</div>
+    <div class="modal-desc">${c['概要']||'—'}</div>
+    ${url?`<div class="modal-url" onclick="openURL('${url}')"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>${url}</div>`:''}
+    <div class="modal-section-label" style="margin-bottom:9px">評価指標</div>
+    <div class="modal-metrics">
+      <div class="modal-metric"><div class="modal-metric-label">技術難易度</div><div class="difficulty-dots" style="justify-content:center;margin-bottom:4px">${renderDots(tech,'tech')}</div><div class="modal-metric-val">${diffLabel(tech)}</div></div>
+      <div class="modal-metric"><div class="modal-metric-label">営業難易度</div><div class="difficulty-dots" style="justify-content:center;margin-bottom:4px">${renderDots(biz,'biz')}</div><div class="modal-metric-val">${diffLabel(biz)}</div></div>
+      <div class="modal-metric"><div class="modal-metric-label">キャッシュまで</div><div class="modal-metric-val" style="margin-top:18px">${cashLabel(cash)}</div></div>
+    </div>
+    <div class="modal-section-label">メモ・コメント</div>
+    <textarea class="modal-memo-input" id="modal-memo-${id}" placeholder="気づきや考えを残す...">${m.memo||''}</textarea>
+    <div class="modal-action-grid">
+      <div class="modal-action-btn" style="${doneActive?'background:var(--coral-light);color:#4A1B0C;border-color:#F0997B':''}" onclick="modalToggleDone('${id}')">✓ 確認済み</div>
+      <div class="modal-action-btn" style="${likeActive?'background:var(--teal-light);color:var(--teal-dark);border-color:var(--teal-mid)':''}" onclick="modalToggleLike('${id}')">♡ いいね</div>
+    </div>
+    <div class="modal-save-btn" onclick="saveModalMemo('${id}')">メモを保存して閉じる</div>
+  `;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModalOutside(e){
+  if(e.target===document.getElementById('modal-overlay')) closeModal();
+}
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function saveModalMemo(id){
+  const el=document.getElementById('modal-memo-'+id);
+  if(el){ const m=getM(id); m.memo=el.value; meta[id]=m; saveMeta(); }
+  renderList(); renderLiked();
+  closeModal();
+}
+
+function modalToggleDone(id){
+  const el=document.getElementById('modal-memo-'+id);
+  const m=getM(id);
+  if(el) m.memo=el.value;
+  m.done=!m.done;
+  if(!m.done) m.liked=false;
+  meta[id]=m; saveMeta();
+  updateStats(); renderSwipe(); renderList(); renderLiked();
+  closeModal();
+}
+function modalToggleLike(id){
+  const el=document.getElementById('modal-memo-'+id);
+  const m=getM(id);
+  if(el) m.memo=el.value;
+  m.liked=!m.liked;
+  if(m.liked) m.done=true;
+  meta[id]=m; saveMeta();
+  updateStats(); renderSwipe(); renderList(); renderLiked();
+  closeModal();
+}
+
+function openURL(url){
+  if(url) window.open(url,'_blank','noopener');
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active',['swipe','list','liked','upload'][i]===tab);
+  });
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+tab).classList.add('active');
+  if(tab==='list') renderList();
+  if(tab==='liked') renderLiked();
+}
+
+loadStorage();
+updateStats();
+renderSwipe();
+</script>
+</body>
+</html>
